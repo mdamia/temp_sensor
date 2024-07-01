@@ -39,15 +39,19 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-
 // Data wire is plugged into port 2 on the Arduino
 #define ONE_WIRE_BUS 4
-float waterTemp;
+float currentWaterTemp;
 float desiredWaterTemp = 100.00;
 char tp = 'F';
 int seconds = 0;
 float tf;
 
+
+struct WaterTemp {
+  float cTemp;
+  float fTemp;
+};
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
@@ -67,9 +71,8 @@ int keyIndex = 0;           // your network key index number (needed only for WE
 WebServer server(80);
 
 void setup(void) {
+
   server.enableCORS(true);
-  pinMode(relayPIN, OUTPUT);
-  digitalWrite(relayPIN, LOW);
   // start serial port
   Serial.begin(115200);
   // set the wifi mode
@@ -82,7 +85,6 @@ void setup(void) {
     Serial.print(".");
   }
   Serial.println("");
-  Serial.printf("Connected to: %s - IP address: %s", ssid, WiFi.localIP());
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
@@ -91,48 +93,22 @@ void setup(void) {
     Serial.println("MDNS responder started");
   }
 
-  server.on("/relaystatus", []() {
-    int relayStatus = digitalRead(relayPIN);
-
-    Serial.printf("relay status is :  %d", relayStatus);
-    Serial.println("");
-    if (relayStatus == 1) {
-      server.send(200, "text/plain", "1");
-    } else {
-      server.send(200, "text/plain", "0");
-    }
-  });
-  
-  server.on(F("/togglerelay"), handleForm);
+  server.on(F("/water/temp"), handleWaterTemp);
   server.onNotFound(handleNotFound);
   server.begin();
   Serial.println("HTTP server started");
+  getWaterTemp();
 }
 
 void loop() {
   server.handleClient();
-  delay(10000);  // Wait for 1000 millisecond(s)
-  seconds += 1;
-  int value = digitalRead(8);
-  // Serial.println(value);
-  tf = getWaterTemp();
-  Serial.println(tf);
-  if (tf > 0) {
-    if (tf <= desiredWaterTemp) {
-
-      Serial.println("Shower is Cold");
-    } else {
-
-      Serial.println("Shower is HOT");
-    }
-  } else {
-    Serial.println("Error: Could not read temperature data");
-  }
+  delay(1000);  // Wait for 1000 millisecond(s)
 }
 
 
 
-float getWaterTemp() {
+WaterTemp getWaterTemp() {
+   WaterTemp wt;
   // call sensors.requestTemperatures() to issue a global temperature
   // request to all devices on the bus
   // Serial.print("Requesting temperatures...");
@@ -140,21 +116,21 @@ float getWaterTemp() {
   // Serial.println("DONE");
   // After we got the temperatures, we can print them here.
   // We use the function ByIndex, and as an example get the temperature from the first sensor only.
-  float tempC = sensors.getTempCByIndex(0);
+  wt.cTemp = sensors.getTempCByIndex(0);
   // Check if reading was successful
-  if (tempC != DEVICE_DISCONNECTED_C) {
-    Serial.print(tempC);
+  if (wt.cTemp != DEVICE_DISCONNECTED_C) {
+    Serial.print(wt.cTemp);
     Serial.print("°C --- ");
-    float tempinFahrenheit = DallasTemperature::toFahrenheit(tempC);
-    Serial.print(DallasTemperature::toFahrenheit(tempC));  // Converts tempC to Fahrenheit
+    wt.fTemp = DallasTemperature::toFahrenheit(wt.cTemp);
+    Serial.print(DallasTemperature::toFahrenheit( wt.fTemp));  // Converts tempC to Fahrenheit
     Serial.print("°F");
     Serial.println();
-    return tempC, tempinFahrenheit;
+    return wt;
   } else {
     Serial.println("Error: Could not read temperature data");
-    return 0.00;
+    return wt;
   }
-  return 0.00;
+  return wt;
 }
 
 char getPreferredTemp(char c) {
@@ -167,27 +143,16 @@ char getPreferredTemp(char c) {
       break;
   }
 }
-// web server fuctions
-
-void handleForm() {
-  Serial.println(server.method());
-  
-  if (server.method() == HTTP_POST) {
-
-    Serial.printf("relay status is :  %d \n\n", digitalRead(relayPIN));
-
-    Serial.println(server.arg(0));
-    if (server.arg(0) == "1") {
-      digitalWrite(relayPIN, HIGH);
-      Serial.printf("new relay status is :  %d \n\n", digitalRead(relayPIN));
-      server.send(200, "text/plain", "{\"status\":\"1\"}");
-    } else {
-      digitalWrite(relayPIN, LOW);
-      Serial.printf("new relay status is :  %d \n\n", digitalRead(relayPIN));
-      server.send(200, "text/plain", "{\"status\":\"0\"}");
-    }
+// handles get water temp  call 
+void handleWaterTemp() {
+  if (server.method() == HTTP_GET) {
+    WaterTemp wt = getWaterTemp();
+    Serial.printf("Current Water Temp is:  %f -- % f  \n\n", wt.cTemp, wt.fTemp);
+    // server.send(200, "application/json", String(wt));
+    server.send(200, "application/json", "{\"cTemp\":\"" + String(wt.cTemp) + "\,\"fTemp\":\"" + String(wt.fTemp) + "\"}");
   }
 }
+// http 404 response
 void handleNotFound() {
 
   String message = "File Not Found\n\n";
