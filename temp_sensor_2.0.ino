@@ -32,7 +32,6 @@
 #include <NetworkClient.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
-#include <ArduinoJson.h>
 
 #include "arduino_secrets.h"
 // Include DallasTemperature and One wire
@@ -45,7 +44,7 @@ float currentWaterTemp;
 float desiredWaterTemp = 100.00;
 char tp = 'F';
 int seconds = 0;
-float tf;
+
 
 
 struct WaterTemp {
@@ -55,23 +54,18 @@ struct WaterTemp {
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
-// init json doc
-JsonDocument jsonData;
+
 // Pass our oneWire reference to Dallas Temperature.
 DallasTemperature sensors(&oneWire);
-// valve connection
 
-int relayPIN = 26;
-
-///////please enter your sensitive data in the Secret tab/arduino_secrets.h
+// enter wifi settings secrets file
 char ssid[] = SECRET_SSID;  // your network SSID (name)
 char pass[] = SECRET_PASS;  // your network password (use for WPA, or use as key for WEP)
 int keyIndex = 0;           // your network key index number (needed only for WEP)
-
+// init the server
 WebServer server(80);
 
 void setup(void) {
-
   server.enableCORS(true);
   // start serial port
   Serial.begin(115200);
@@ -92,11 +86,14 @@ void setup(void) {
   if (MDNS.begin("esp32")) {
     Serial.println("MDNS responder started");
   }
-
+  // get water temp API or route
   server.on(F("/water/temp"), handleWaterTemp);
+  // not found page handler
   server.onNotFound(handleNotFound);
+  // start the server
   server.begin();
   Serial.println("HTTP server started");
+  // call get water temp to test connections to the wire
   getWaterTemp();
 }
 
@@ -104,8 +101,6 @@ void loop() {
   server.handleClient();
   delay(1000);  // Wait for 1000 millisecond(s)
 }
-
-
 
 WaterTemp getWaterTemp() {
    WaterTemp wt;
@@ -143,18 +138,16 @@ char getPreferredTemp(char c) {
       break;
   }
 }
-// handles get water temp  call 
+// handles get water temp call 
 void handleWaterTemp() {
   if (server.method() == HTTP_GET) {
     WaterTemp wt = getWaterTemp();
     Serial.printf("Current Water Temp is:  %f -- % f  \n\n", wt.cTemp, wt.fTemp);
-    // server.send(200, "application/json", String(wt));
     server.send(200, "application/json", "{\"cTemp\":\"" + String(wt.cTemp) + "\,\"fTemp\":\"" + String(wt.fTemp) + "\"}");
   }
 }
 // http 404 response
 void handleNotFound() {
-
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
