@@ -52,6 +52,8 @@ struct WaterTemp {
   float fTemp;
 };
 
+
+
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
 
@@ -143,7 +145,7 @@ void handleWaterTemp() {
   if (server.method() == HTTP_GET) {
     WaterTemp wt = getWaterTemp();
     Serial.printf("Current Water Temp is:  %f -- % f  \n\n", wt.cTemp, wt.fTemp);
-    server.send(200, "application/json", "{\"cTemp\":\"" + String(wt.cTemp) + "\,\"fTemp\":\"" + String(wt.fTemp) + "\"}");
+    server.send(200, "application/json", "{\"cTemp\":\""+String(wt.cTemp)+"\",\"fTemp\":\""+String(wt.fTemp)+"\"}");
   }
 }
 // http 404 response
